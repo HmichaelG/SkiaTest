@@ -1,6 +1,7 @@
 // app.js - Fixed version using Blob URL to avoid SecurityError
 
 let worker = null;
+let workerUrl = null;
 
 // Get the worker code as a string
 // This is the fix: instead of loading from a file, we embed the code and create a Blob URL
@@ -45,7 +46,7 @@ function createWorker() {
     try {
         const workerCode = getWorkerCode();
         const blob = new Blob([workerCode], { type: 'application/javascript' });
-        const workerUrl = URL.createObjectURL(blob);
+        workerUrl = URL.createObjectURL(blob);
         
         // This is line 49 in the original error message
         // OLD (causes error): worker = new Worker('worker.js');
@@ -91,12 +92,14 @@ function createWorker() {
 function startWork() {
     if (!worker) {
         createWorker();
-        // Give it a moment to initialize
+        // Wait for worker initialization before sending first message
+        // This delay ensures the worker's event listener is ready
+        const WORKER_INIT_DELAY_MS = 100;
         setTimeout(() => {
             if (worker) {
                 worker.postMessage({ command: 'start' });
             }
-        }, 100);
+        }, WORKER_INIT_DELAY_MS);
     } else {
         worker.postMessage({ command: 'start' });
     }
@@ -107,6 +110,12 @@ function stopWork() {
     if (worker) {
         worker.postMessage({ command: 'stop' });
         worker = null;
+        
+        // Revoke the blob URL to free memory
+        if (workerUrl) {
+            URL.revokeObjectURL(workerUrl);
+            workerUrl = null;
+        }
     }
 }
 
